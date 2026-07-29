@@ -1,16 +1,48 @@
 <script lang="ts">
+  import { getVersion } from "@tauri-apps/api/app";
   import { enable, disable, isEnabled } from "@tauri-apps/plugin-autostart";
+  import { relaunch } from "@tauri-apps/plugin-process";
+  import { check, type Update } from "@tauri-apps/plugin-updater";
   import { onMount } from "svelte";
   import type { Settings } from "../lib/ipc";
 
   let { settings, save }: { settings: Settings; save: () => void } = $props();
 
   let autostart = $state(false);
+  let version = $state("");
+  let update = $state<Update | null>(null);
+  let updateStatus = $state("");
+
   onMount(async () => {
     try {
       autostart = await isEnabled();
     } catch {}
+    try {
+      version = await getVersion();
+    } catch {}
   });
+
+  async function checkUpdate() {
+    updateStatus = "Checking…";
+    try {
+      update = await check();
+      updateStatus = update ? `Update ${update.version} available` : "Up to date";
+    } catch (e) {
+      updateStatus = `Check failed: ${e}`;
+    }
+  }
+
+  async function installUpdate() {
+    if (!update) return;
+    updateStatus = "Downloading…";
+    try {
+      await update.downloadAndInstall();
+      updateStatus = "Restarting…";
+      await relaunch();
+    } catch (e) {
+      updateStatus = `Install failed: ${e}`;
+    }
+  }
   async function toggleAutostart(e: Event) {
     const on = (e.target as HTMLInputElement).checked;
     try {
@@ -100,6 +132,17 @@
   <div class="row">
     <label for="autostart">Launch at login</label>
     <input id="autostart" type="checkbox" checked={autostart} onchange={toggleAutostart} />
+  </div>
+  <div class="row">
+    <label>Version {version}</label>
+    <div style="display: flex; align-items: center; gap: 10px">
+      {#if updateStatus}<span style="font-size: 12px; color: var(--faint)">{updateStatus}</span>{/if}
+      {#if update}
+        <button class="primary" onclick={installUpdate}>Install {update.version}</button>
+      {:else}
+        <button onclick={checkUpdate}>Check for updates</button>
+      {/if}
+    </div>
   </div>
   <div class="row">
     <label for="pill-margin">Pill distance from bottom (px)</label>
