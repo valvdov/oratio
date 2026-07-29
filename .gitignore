@@ -5,3 +5,4 @@ assets/testdata/*.wav
 node_modules
 dist
 apps/desktop/src-tauri/gen/
+ios/Oratio.xcodeproj/
