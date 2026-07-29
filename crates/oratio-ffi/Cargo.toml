@@ -1,0 +1,19 @@
+[package]
+name = "oratio-ffi"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "oratio_ffi"
+crate-type = ["staticlib", "lib"]
+
+[[bin]]
+name = "uniffi-bindgen"
+path = "src/bin/uniffi-bindgen.rs"
+
+[dependencies]
+oratio-core = { path = "../oratio-core", default-features = false, features = ["whisper", "local-audio"] }
+uniffi = { version = "0.29", features = ["cli"] }
+thiserror.workspace = true
+tracing.workspace = true

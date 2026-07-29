@@ -1,3 +1,4 @@
+#[cfg(feature = "vad")]
 pub mod streaming;
 #[cfg(feature = "whisper")]
 pub mod whisper;

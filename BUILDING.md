@@ -74,3 +74,19 @@ Current Wayland status:
   [ydotool](https://github.com/ReimuNotMoe/ydotool) with its daemon (GNOME).
 - Global hotkeys via the XDG GlobalShortcuts portal are in progress; on X11
   sessions the regular hotkey works already.
+
+## iOS (simulator / device)
+
+Prereqs: Xcode 16+, XcodeGen (`brew install xcodegen`), Rust iOS targets.
+
+```sh
+./scripts/build-ios-ffi.sh   # builds oratio-core+whisper as OratioFFI.xcframework
+cd ios && xcodegen generate
+xcodebuild -project Oratio.xcodeproj -scheme Oratio \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' CODE_SIGNING_ALLOWED=NO build
+```
+
+The container app has a fully local Dictate mode (whisper small on-device,
+one-time 180 MB model download in-app). The keyboard extension uses the
+on-device system recognizer by default (Apple's memory limits rule out
+whisper inside extensions) with optional cloud whisper + AI polish by API key.

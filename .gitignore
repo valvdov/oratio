@@ -6,3 +6,5 @@ node_modules
 dist
 apps/desktop/src-tauri/gen/
 ios/Oratio.xcodeproj/
+ios/OratioFFI.xcframework/
+ios/Generated/

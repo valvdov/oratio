@@ -5,7 +5,12 @@ import Speech
 struct OratioApp: App {
     var body: some Scene {
         WindowGroup {
-            SettingsView()
+            TabView {
+                NavigationStack { DictateView() }
+                    .tabItem { Label("Dictate", systemImage: "mic.fill") }
+                SettingsView()
+                    .tabItem { Label("Settings", systemImage: "gearshape") }
+            }
         }
     }
 }

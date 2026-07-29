@@ -13,9 +13,13 @@ targets:
   Oratio:
     type: application
     platform: iOS
+    settings:
+      base:
+        OTHER_LDFLAGS: "-lc++"
     sources:
       - path: Oratio
       - path: Shared
+      - path: Generated/oratio_ffi.swift
     info:
       path: Oratio/Info.plist
       properties:
@@ -33,6 +37,11 @@ targets:
     dependencies:
       - target: OratioKeyboard
         embed: true
+      - framework: OratioFFI.xcframework
+        embed: false
+      - sdk: Accelerate.framework
+      - sdk: Metal.framework
+      - sdk: MetalKit.framework
 
   OratioKeyboard:
     type: app-extension
