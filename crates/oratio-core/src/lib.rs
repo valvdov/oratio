@@ -4,6 +4,7 @@ pub mod history;
 pub mod models;
 pub mod paths;
 pub mod polish;
+pub mod secrets;
 pub mod settings;
 pub mod snippets;
 pub mod stt;

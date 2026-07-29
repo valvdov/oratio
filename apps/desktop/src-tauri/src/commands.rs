@@ -54,6 +54,7 @@ pub fn save_settings(app: AppHandle, new_settings: Settings) -> Result<(), Strin
     *state.settings.lock().unwrap() = new_settings.clone();
     new_settings.save(&settings_path()).map_err(|e| e.to_string())?;
     let _ = app.emit("settings://changed", &new_settings.appearance);
+    crate::apply_pill_position(&app);
     Ok(())
 }
 

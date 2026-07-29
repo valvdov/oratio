@@ -101,6 +101,18 @@
     <label for="autostart">Launch at login</label>
     <input id="autostart" type="checkbox" checked={autostart} onchange={toggleAutostart} />
   </div>
+  <div class="row">
+    <label for="pill-margin">Pill distance from bottom (px)</label>
+    <input
+      id="pill-margin"
+      type="number"
+      min="0"
+      max="500"
+      style="width: 90px"
+      bind:value={settings.appearance.pill_bottom_margin}
+      onchange={save}
+    />
+  </div>
 </div>
 
 <div class="card">

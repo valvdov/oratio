@@ -639,8 +639,7 @@ enum SoundCue {
     Stop,
 }
 
-/// Subtle system-sound cues on record start/stop (macOS).
-#[cfg_attr(not(target_os = "macos"), allow(unused_variables))]
+/// Subtle synthesized cues on record start/stop — identical on every platform.
 fn play_sound(app: &AppHandle, cue: SoundCue) {
     let enabled = {
         let state = app.state::<AppState>();
@@ -650,18 +649,11 @@ fn play_sound(app: &AppHandle, cue: SoundCue) {
     if !enabled {
         return;
     }
-    #[cfg(target_os = "macos")]
-    {
-        let file = match cue {
-            SoundCue::Start => "/System/Library/Sounds/Tink.aiff",
-            SoundCue::Stop => "/System/Library/Sounds/Pop.aiff",
-        };
-        let _ = std::process::Command::new("afplay")
-            .args(["-v", "0.3", file])
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .spawn();
-    }
+    let cue = match cue {
+        SoundCue::Start => oratio_core::audio::cue::Cue::Start,
+        SoundCue::Stop => oratio_core::audio::cue::Cue::Stop,
+    };
+    oratio_core::audio::cue::play(cue);
 }
 
 fn show_pill(app: &AppHandle, state: &str) {

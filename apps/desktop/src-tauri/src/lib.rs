@@ -180,11 +180,31 @@ fn position_pill(app: &tauri::AppHandle) {
                 gtk_win.init_layer_shell();
                 gtk_win.set_layer(gtk_layer_shell::Layer::Overlay);
                 gtk_win.set_anchor(gtk_layer_shell::Edge::Bottom, true);
-                gtk_win.set_layer_shell_margin(gtk_layer_shell::Edge::Bottom, 24);
                 tracing::info!("pill attached to the bottom edge via layer-shell");
-                return;
             }
             Err(e) => tracing::warn!("layer-shell setup failed ({e}); pill position may be off"),
+        }
+    }
+
+    apply_pill_position(app);
+}
+
+/// (Re)apply the pill's distance from the bottom edge from settings.
+pub fn apply_pill_position(app: &tauri::AppHandle) {
+    let Some(pill) = app.get_webview_window("pill") else {
+        return;
+    };
+    let margin = app
+        .try_state::<pipeline::AppState>()
+        .map(|st| st.settings.lock().unwrap().appearance.pill_bottom_margin)
+        .unwrap_or(24);
+
+    #[cfg(target_os = "linux")]
+    {
+        use gtk_layer_shell::LayerShell;
+        if let Ok(gtk_win) = pill.gtk_window() {
+            gtk_win.set_layer_shell_margin(gtk_layer_shell::Edge::Bottom, margin as i32);
+            return;
         }
     }
 
@@ -196,7 +216,7 @@ fn position_pill(app: &tauri::AppHandle) {
         let pill_size = pill.outer_size().map(|s| s.to_logical::<f64>(scale));
         let (w, h) = pill_size.map(|s| (s.width, s.height)).unwrap_or((330.0, 64.0));
         let x = area_pos.x + (area.width - w) / 2.0;
-        let y = area_pos.y + area.height - h - 20.0;
+        let y = area_pos.y + area.height - h - margin as f64;
         let _ = pill.set_position(tauri::LogicalPosition::new(x, y));
     }
 }

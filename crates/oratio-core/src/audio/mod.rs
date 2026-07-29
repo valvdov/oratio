@@ -1,4 +1,5 @@
 pub mod capture;
+pub mod cue;
 pub mod resample;
 
 pub use capture::Recorder;

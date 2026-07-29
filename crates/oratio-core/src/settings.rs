@@ -28,6 +28,8 @@ pub struct AppearanceSettings {
     pub theme: String,
     /// "system" | "light" | "dark"
     pub mode: String,
+    /// Distance of the recording pill from the bottom screen edge (px).
+    pub pill_bottom_margin: u32,
 }
 
 impl Default for AppearanceSettings {
@@ -35,6 +37,7 @@ impl Default for AppearanceSettings {
         Self {
             theme: "cream".into(),
             mode: "system".into(),
+            pill_bottom_margin: 24,
         }
     }
 }
@@ -160,21 +163,51 @@ pub fn settings_path() -> PathBuf {
 
 impl Settings {
     /// Load settings, falling back to defaults when the file is missing or invalid.
+    /// API keys come from the OS credential store when the file has none.
     pub fn load(path: &Path) -> Self {
-        match std::fs::read_to_string(path) {
+        let mut settings: Self = match std::fs::read_to_string(path) {
             Ok(text) => serde_json::from_str(&text).unwrap_or_else(|e| {
                 tracing::warn!("settings.json is invalid ({e}), using defaults");
                 Self::default()
             }),
             Err(_) => Self::default(),
+        };
+        for provider in &mut settings.polish.providers {
+            let missing = provider
+                .api_key
+                .as_deref()
+                .map(|k| k.trim().is_empty())
+                .unwrap_or(true);
+            if missing {
+                if let Some(key) = crate::secrets::get(&provider.id) {
+                    provider.api_key = Some(key);
+                }
+            }
         }
+        settings
     }
 
+    /// Persist settings. Keys go to the credential store; the file keeps them
+    /// only when the store is unavailable (e.g. no Secret Service on Linux).
     pub fn save(&self, path: &Path) -> Result<()> {
         if let Some(dir) = path.parent() {
             std::fs::create_dir_all(dir)?;
         }
-        let text = serde_json::to_string_pretty(self).expect("settings serialize");
+        let mut on_disk = self.clone();
+        for provider in &mut on_disk.polish.providers {
+            match provider.api_key.as_deref().map(str::trim) {
+                Some(key) if !key.is_empty() => {
+                    if crate::secrets::set(&provider.id, key) {
+                        provider.api_key = None;
+                    }
+                }
+                _ => {
+                    crate::secrets::delete(&provider.id);
+                    provider.api_key = None;
+                }
+            }
+        }
+        let text = serde_json::to_string_pretty(&on_disk).expect("settings serialize");
         std::fs::write(path, text)?;
         Ok(())
     }

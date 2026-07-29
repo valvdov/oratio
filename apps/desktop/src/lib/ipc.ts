@@ -40,7 +40,7 @@ export interface Settings {
     per_app: Record<string, string>;
     styles: Style[];
   };
-  appearance: { theme: string; mode: string };
+  appearance: { theme: string; mode: string; pill_bottom_margin: number };
   insertion: { restore_clipboard_ms: number };
   sound_cues: boolean;
 }
