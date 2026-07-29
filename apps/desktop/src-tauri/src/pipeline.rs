@@ -545,7 +545,7 @@ fn polish_text(
         return regex_clean::clean(raw);
     }
 
-    let provider = OpenAiCompat::new(provider_cfg, cfg.timeout_ms);
+    let provider = OpenAiCompat::new(provider_cfg.clone(), cfg.timeout_ms);
     let req = PolishRequest {
         raw,
         style,
@@ -563,6 +563,15 @@ fn polish_text(
         }
         Err(e) => {
             tracing::warn!("polish failed ({e}), using regex fallback");
+            // A local model that missed the timeout was probably cold-loading.
+            // Warm it in the background so the next dictation lands warm.
+            let is_local = provider_cfg.base_url.contains("127.0.0.1")
+                || provider_cfg.base_url.contains("localhost");
+            if is_local {
+                std::thread::spawn(move || {
+                    let _ = oratio_core::polish::openai_compat::warm_up(&provider_cfg);
+                });
+            }
             regex_clean::clean(raw)
         }
     }
