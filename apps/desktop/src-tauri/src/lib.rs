@@ -85,6 +85,13 @@ pub fn run() {
             *state.raw_shortcut.lock().unwrap() = raw_hotkey;
             app.manage(state);
 
+            // GTK CSD buttons are dead-on-arrival under KDE Wayland (tao bug) —
+            // drop native decorations there; the web UI draws its own titlebar.
+            #[cfg(target_os = "linux")]
+            if let Some(main) = app.get_webview_window("main") {
+                let _ = main.set_decorations(false);
+            }
+
             tray::create(app.handle())?;
             position_pill(app.handle());
             permissions::ensure_accessibility_prompt();

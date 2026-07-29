@@ -1,6 +1,12 @@
 <script lang="ts">
   import "./app.css";
+  import { getCurrentWindow } from "@tauri-apps/api/window";
   import { getSettings, saveSettings, type Settings } from "./lib/ipc";
+
+  // Linux runs without native decorations (GTK CSD buttons are broken under
+  // KDE Wayland) — we draw our own titlebar there.
+  const customTitlebar = navigator.userAgent.includes("Linux");
+  const appWindow = getCurrentWindow();
   import History from "./pages/History.svelte";
   import General from "./pages/General.svelte";
   import Speech from "./pages/Speech.svelte";
@@ -56,7 +62,18 @@
   const CurrentPage = $derived(pages.find((p) => p.id === current)!.component);
 </script>
 
-<div class="layout">
+{#if customTitlebar}
+  <div class="titlebar" data-tauri-drag-region>
+    <span class="tb-title" data-tauri-drag-region>Oratio</span>
+    <div class="tb-buttons">
+      <button class="tb-btn" aria-label="Minimize" onclick={() => appWindow.minimize()}>–</button>
+      <button class="tb-btn" aria-label="Maximize" onclick={() => appWindow.toggleMaximize()}>□</button>
+      <button class="tb-btn tb-close" aria-label="Close" onclick={() => appWindow.close()}>×</button>
+    </div>
+  </div>
+{/if}
+
+<div class="layout" class:with-titlebar={customTitlebar}>
   <aside>
     <div class="brand">
       <span class="dot"></span>
@@ -89,9 +106,48 @@
 </div>
 
 <style>
+  .titlebar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 36px;
+    padding: 0 6px 0 14px;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--border);
+    user-select: none;
+  }
+  .tb-title {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--muted);
+  }
+  .tb-buttons {
+    display: flex;
+    gap: 2px;
+  }
+  .tb-btn {
+    width: 34px;
+    height: 28px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 15px;
+    line-height: 1;
+    padding: 0;
+    border-radius: 6px;
+  }
+  .tb-btn:hover {
+    background: var(--surface);
+  }
+  .tb-close:hover {
+    background: #c0392b;
+    color: #fff;
+  }
   .layout {
     display: flex;
     height: 100vh;
+  }
+  .layout.with-titlebar {
+    height: calc(100vh - 36px);
   }
   aside {
     width: 176px;
