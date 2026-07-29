@@ -33,3 +33,8 @@ zstd = "0.13"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 whisper-rs = { version = "0.16", features = ["metal"], optional = true }
+
+# GPU transcription on desktop Linux (build needs vulkan-headers + shaderc;
+# at runtime ggml falls back to CPU when no Vulkan device is present).
+[target.'cfg(all(target_os = "linux", target_arch = "x86_64"))'.dependencies]
+whisper-rs = { version = "0.16", features = ["vulkan"], optional = true }
