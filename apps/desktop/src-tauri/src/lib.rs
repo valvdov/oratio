@@ -16,7 +16,9 @@ pub fn run() {
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "info,oratio_core=debug,oratio_desktop=debug".into()),
+                .unwrap_or_else(|_| {
+                    "info,oratio_core=debug,oratio_desktop=debug,zbus=error".into()
+                }),
         )
         .init();
 

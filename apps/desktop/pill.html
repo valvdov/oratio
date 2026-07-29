@@ -157,6 +157,11 @@
       const { listen } = window.__TAURI__.event;
       const { invoke } = window.__TAURI__.core;
 
+      // layer-shell fixes the pill position on Linux — a grab cursor would lie.
+      if (navigator.userAgent.includes("Linux")) {
+        document.getElementById("pill").style.cursor = "default";
+      }
+
       document.getElementById("stop").addEventListener("click", () => invoke("stop_dictation"));
       document.getElementById("cancel").addEventListener("click", () => invoke("cancel_dictation"));
 
