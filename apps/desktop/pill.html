@@ -135,8 +135,8 @@
     </style>
   </head>
   <body>
-    <div id="pill" data-tauri-drag-region>
-      <div id="dot" data-tauri-drag-region></div>
+    <div id="pill">
+      <div id="dot"></div>
       <div id="wave"></div>
       <div id="label">0:00</div>
       <button id="stop" class="btn" title="Stop and insert">&#9632;</button>
@@ -158,8 +158,28 @@
       const { invoke } = window.__TAURI__.core;
 
       // layer-shell fixes the pill position on Linux — a grab cursor would lie.
+      // Elsewhere the pill is an NSPanel/tool window where the built-in drag
+      // region does not fire, so dragging is implemented by hand.
       if (navigator.userAgent.includes("Linux")) {
         document.getElementById("pill").style.cursor = "default";
+      } else {
+        const win = window.__TAURI__.window.getCurrentWindow();
+        const { PhysicalPosition } = window.__TAURI__.dpi;
+        let drag = null;
+        pill.addEventListener("mousedown", async (e) => {
+          if (e.target.closest("button")) return;
+          const [pos, scale] = await Promise.all([win.outerPosition(), win.scaleFactor()]);
+          drag = { sx: e.screenX, sy: e.screenY, px: pos.x, py: pos.y, scale };
+        });
+        window.addEventListener("mousemove", (e) => {
+          if (!drag) return;
+          const dx = (e.screenX - drag.sx) * drag.scale;
+          const dy = (e.screenY - drag.sy) * drag.scale;
+          win.setPosition(
+            new PhysicalPosition(Math.round(drag.px + dx), Math.round(drag.py + dy)),
+          );
+        });
+        window.addEventListener("mouseup", () => (drag = null));
       }
 
       document.getElementById("stop").addEventListener("click", () => invoke("stop_dictation"));
