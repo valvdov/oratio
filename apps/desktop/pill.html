@@ -77,11 +77,15 @@
           opacity: 0.3;
         }
       }
+      #pill {
+        cursor: grab;
+      }
       #wave {
         display: flex;
         align-items: center;
         gap: 2.5px;
         height: 18px;
+        pointer-events: none;
       }
       #wave span {
         width: 3px;
@@ -131,8 +135,8 @@
     </style>
   </head>
   <body>
-    <div id="pill">
-      <div id="dot"></div>
+    <div id="pill" data-tauri-drag-region>
+      <div id="dot" data-tauri-drag-region></div>
       <div id="wave"></div>
       <div id="label">0:00</div>
       <button id="stop" class="btn" title="Stop and insert">&#9632;</button>

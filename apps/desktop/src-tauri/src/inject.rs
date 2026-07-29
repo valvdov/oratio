@@ -120,11 +120,93 @@ mod win {
 #[cfg(target_os = "linux")]
 mod linux {
     use super::InjectError;
+    use std::sync::OnceLock;
 
-    /// Wayland-friendly paste synthesis. Tries wtype (wlroots/KDE), then
-    /// ydotool (needs ydotoold). The XDG RemoteDesktop portal path (works on
-    /// GNOME without extra tools) is the planned follow-up.
+    use ashpd::desktop::remote_desktop::{DeviceType, KeyState, RemoteDesktop};
+    use ashpd::desktop::{PersistMode, Session};
+
+    // Linux evdev keycodes.
+    const KEY_LEFTCTRL: i32 = 29;
+    const KEY_V: i32 = 47;
+
+    /// A persistent XDG RemoteDesktop portal session. This is the only paste
+    /// path that works on stock KDE and GNOME Wayland (KWin/Mutter do not
+    /// expose the virtual-keyboard protocol to regular clients). The user
+    /// approves it once; the restore token skips the dialog afterwards.
+    struct Portal {
+        proxy: RemoteDesktop<'static>,
+        session: Session<'static, RemoteDesktop<'static>>,
+    }
+
+    static PORTAL: OnceLock<tauri::async_runtime::Mutex<Option<Portal>>> = OnceLock::new();
+
+    fn portal_cell() -> &'static tauri::async_runtime::Mutex<Option<Portal>> {
+        PORTAL.get_or_init(|| tauri::async_runtime::Mutex::new(None))
+    }
+
+    fn token_path() -> std::path::PathBuf {
+        oratio_core::paths::data_dir().join("portal-restore-token")
+    }
+
+    async fn connect() -> ashpd::Result<Portal> {
+        let proxy = RemoteDesktop::new().await?;
+        let session = proxy.create_session().await?;
+        let token = std::fs::read_to_string(token_path()).ok();
+        proxy
+            .select_devices(
+                &session,
+                DeviceType::Keyboard.into(),
+                token.as_deref().map(str::trim),
+                PersistMode::ExplicitlyRevoked,
+            )
+            .await?
+            .response()?;
+        let devices = proxy.start(&session, None).await?.response()?;
+        if let Some(t) = devices.restore_token() {
+            let _ = std::fs::write(token_path(), t);
+        }
+        tracing::info!("RemoteDesktop portal session established");
+        Ok(Portal { proxy, session })
+    }
+
+    async fn send_ctrl_v(portal: &Portal) -> ashpd::Result<()> {
+        let keys = [
+            (KEY_LEFTCTRL, KeyState::Pressed),
+            (KEY_V, KeyState::Pressed),
+            (KEY_V, KeyState::Released),
+            (KEY_LEFTCTRL, KeyState::Released),
+        ];
+        for (code, state) in keys {
+            portal
+                .proxy
+                .notify_keyboard_keycode(&portal.session, code, state)
+                .await?;
+            std::thread::sleep(std::time::Duration::from_millis(8));
+        }
+        Ok(())
+    }
+
+    async fn portal_paste() -> ashpd::Result<()> {
+        let cell = portal_cell();
+        let mut guard = cell.lock().await;
+        if guard.is_none() {
+            *guard = Some(connect().await?);
+        }
+        if let Err(e) = send_ctrl_v(guard.as_ref().unwrap()).await {
+            tracing::warn!("portal session stale ({e}), reconnecting");
+            *guard = Some(connect().await?);
+            send_ctrl_v(guard.as_ref().unwrap()).await?;
+        }
+        Ok(())
+    }
+
     pub fn synthesize_paste() -> Result<(), InjectError> {
+        // Portal first: works on KDE and GNOME Wayland with one-time approval.
+        match tauri::async_runtime::block_on(portal_paste()) {
+            Ok(()) => return Ok(()),
+            Err(e) => tracing::warn!("portal paste failed ({e}); trying CLI tools"),
+        }
+
         let attempts: [(&str, &[&str]); 3] = [
             ("wtype", &["-M", "ctrl", "-k", "v", "-m", "ctrl"]),
             ("ydotool", &["key", "29:1", "47:1", "47:0", "29:0"]),
@@ -140,7 +222,7 @@ mod linux {
             }
         }
         Err(InjectError::Keystroke(
-            "no working paste tool found (tried wtype, ydotool, xdotool); \
+            "no working paste path (portal denied and wtype/ydotool/xdotool absent); \
              text is on the clipboard — paste manually with Ctrl+V"
                 .into(),
         ))

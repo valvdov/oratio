@@ -56,11 +56,12 @@ sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file \
   libasound2-dev
 ```
 
-Arch:
+Arch (system `rust` package works fine — do not add rustup on top of it):
 
 ```sh
-sudo pacman -S --needed webkit2gtk-4.1 base-devel curl wget file openssl \
-  appmenu-gtk-module libappindicator-gtk3 librsvg cmake alsa-lib
+sudo pacman -Syu --needed webkit2gtk-4.1 base-devel curl wget file openssl \
+  appmenu-gtk-module libappindicator-gtk3 librsvg cmake alsa-lib clang \
+  nodejs npm wtype gtk-layer-shell
 ```
 
 ```sh

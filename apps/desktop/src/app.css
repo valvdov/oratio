@@ -121,6 +121,12 @@ textarea:focus,
 select:focus {
   border-color: var(--accent);
 }
+/* webkit2gtk renders <option> popups with its own colors unless set explicitly
+   — in dark themes that meant light text on a white popup. */
+option {
+  background: var(--surface);
+  color: var(--text);
+}
 button {
   font: inherit;
   border: none;

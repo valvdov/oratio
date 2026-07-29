@@ -631,6 +631,7 @@ enum SoundCue {
 }
 
 /// Subtle system-sound cues on record start/stop (macOS).
+#[cfg_attr(not(target_os = "macos"), allow(unused_variables))]
 fn play_sound(app: &AppHandle, cue: SoundCue) {
     let enabled = {
         let state = app.state::<AppState>();

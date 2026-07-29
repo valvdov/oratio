@@ -26,17 +26,7 @@ pub fn spawn(app: tauri::AppHandle, trigger: String) {
     });
 }
 
-async fn run(app: tauri::AppHandle, trigger: String) -> ashpd::Error {
-    match run_inner(app, trigger).await {
-        Ok(never) => never,
-        Err(e) => e,
-    }
-}
-
-async fn run_inner(
-    app: tauri::AppHandle,
-    trigger: String,
-) -> Result<std::convert::Infallible, ashpd::Error> {
+async fn run(app: tauri::AppHandle, trigger: String) -> Result<(), ashpd::Error> {
     let shortcuts = GlobalShortcuts::new().await?;
     let session = shortcuts.create_session().await?;
 
@@ -68,5 +58,6 @@ async fn run_inner(
             Ev::Release => crate::pipeline::on_hotkey_release(&app),
         }
     }
-    Err(ashpd::Error::NoResponse)
+    tracing::warn!("global shortcuts signal stream ended");
+    Ok(())
 }

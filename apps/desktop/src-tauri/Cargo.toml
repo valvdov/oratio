@@ -26,7 +26,7 @@ serde_json.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-arboard = "3"
+arboard = { version = "3", features = ["wayland-data-control"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 core-graphics = { version = "0.24", features = ["elcapitan"] }
@@ -41,3 +41,5 @@ windows = { version = "0.61", features = ["Win32_UI_Input_KeyboardAndMouse"] }
 [target.'cfg(target_os = "linux")'.dependencies]
 ashpd = { version = "0.12", default-features = false, features = ["tokio"] }
 futures-util = "0.3"
+gtk = "0.18"
+gtk-layer-shell = "0.8"

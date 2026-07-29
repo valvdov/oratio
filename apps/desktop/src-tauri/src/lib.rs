@@ -167,6 +167,25 @@ fn position_pill(app: &tauri::AppHandle) {
             Err(e) => tracing::warn!("pill panel conversion failed: {e:?}"),
         }
     }
+    // Wayland forbids clients from positioning their own windows — the pill
+    // would open dead-center. The layer-shell protocol (supported by KWin and
+    // wlroots compositors) pins it to the bottom edge as a proper overlay.
+    #[cfg(target_os = "linux")]
+    {
+        use gtk_layer_shell::LayerShell;
+        match pill.gtk_window() {
+            Ok(gtk_win) => {
+                gtk_win.init_layer_shell();
+                gtk_win.set_layer(gtk_layer_shell::Layer::Overlay);
+                gtk_win.set_anchor(gtk_layer_shell::Edge::Bottom, true);
+                gtk_win.set_layer_shell_margin(gtk_layer_shell::Edge::Bottom, 24);
+                tracing::info!("pill attached to the bottom edge via layer-shell");
+                return;
+            }
+            Err(e) => tracing::warn!("layer-shell setup failed ({e}); pill position may be off"),
+        }
+    }
+
     if let Ok(Some(monitor)) = pill.primary_monitor() {
         let scale = monitor.scale_factor();
         // work_area excludes the Dock and the menu bar.
