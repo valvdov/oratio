@@ -12,11 +12,18 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
         .items(&[&dictate, &open, &quit])
         .build()?;
 
+    // macOS gets the monochrome template (menu bar recolors it); elsewhere a
+    // black-on-transparent glyph is invisible on dark panels — use the colored icon.
+    #[cfg(target_os = "macos")]
     let icon = tauri::image::Image::from_bytes(include_bytes!("../icons/tray.png"))?;
+    #[cfg(not(target_os = "macos"))]
+    let icon = tauri::image::Image::from_bytes(include_bytes!("../icons/32x32.png"))?;
 
-    TrayIconBuilder::with_id(TRAY_ID)
-        .icon(icon)
-        .icon_as_template(true)
+    let builder = TrayIconBuilder::with_id(TRAY_ID).icon(icon);
+    #[cfg(target_os = "macos")]
+    let builder = builder.icon_as_template(true);
+
+    builder
         .tooltip("Oratio")
         .menu(&menu)
         .on_menu_event(|app, event| match event.id().as_ref() {
