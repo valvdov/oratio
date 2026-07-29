@@ -19,6 +19,10 @@ struct SettingsView: View {
     @State private var dictionary = SharedSettings.dictionary
     @State private var newTerm = ""
     @State private var speechStatus = "unknown"
+    @State private var cloudSTT = SharedSettings.cloudSTTEnabled
+    @State private var sttBaseURL = SharedSettings.sttBaseURL
+    @State private var sttApiKey = SharedSettings.sttApiKey
+    @State private var sttModel = SharedSettings.sttModel
 
     private let accent = Color(red: 0.77, green: 0.42, blue: 0.24)
 
@@ -51,6 +55,27 @@ struct SettingsView: View {
                         SFSpeechRecognizer.requestAuthorization { _ in updateSpeechStatus() }
                         AVAudioApplication.requestRecordPermission { _ in }
                     }
+                }
+
+                Section {
+                    Toggle("Cloud recognition (whisper)", isOn: $cloudSTT)
+                    if cloudSTT {
+                        TextField("Base URL", text: $sttBaseURL)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                        TextField("Model", text: $sttModel)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                        SecureField("API key", text: $sttApiKey)
+                    }
+                } header: {
+                    Text("Cloud STT")
+                } footer: {
+                    Text(
+                        "Much better RU+EN accuracy than the on-device recognizer. "
+                        + "Groq offers whisper-large-v3 with a free tier; one Groq key "
+                        + "works for both recognition and polish."
+                    )
                 }
 
                 Section("AI polish") {
@@ -92,6 +117,10 @@ struct SettingsView: View {
             .onChange(of: polishEnabled) { SharedSettings.polishEnabled = polishEnabled }
             .onChange(of: language) { SharedSettings.language = language }
             .onChange(of: dictionary) { SharedSettings.dictionary = dictionary }
+            .onChange(of: cloudSTT) { SharedSettings.cloudSTTEnabled = cloudSTT }
+            .onChange(of: sttBaseURL) { SharedSettings.sttBaseURL = sttBaseURL }
+            .onChange(of: sttApiKey) { SharedSettings.sttApiKey = sttApiKey }
+            .onChange(of: sttModel) { SharedSettings.sttModel = sttModel }
         }
     }
 

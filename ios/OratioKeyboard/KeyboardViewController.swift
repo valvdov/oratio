@@ -61,14 +61,76 @@ final class KeyboardState: ObservableObject {
     private var request: SFSpeechAudioBufferRecognitionRequest?
     private var task: SFSpeechRecognitionTask?
     private var finalText = ""
+    private var audioFile: AVAudioFile?
+    private var audioFileURL: URL?
 
     func toggleRecording() {
         switch phase {
         case .recording: stopRecording(discard: false)
         case .processing: break
-        default: startRecording()
+        default:
+            if CloudSTT.isConfigured {
+                startCloudRecording()
+            } else {
+                startRecording()
+            }
         }
     }
+
+    // MARK: Cloud STT: record to a wav file, upload on stop.
+
+    private func startCloudRecording() {
+        do {
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.record, mode: .measurement, options: .duckOthers)
+            try session.setActive(true, options: .notifyOthersOnDeactivation)
+
+            let url = FileManager.default.temporaryDirectory
+                .appendingPathComponent("dictation-\(UUID().uuidString).wav")
+            let input = audioEngine.inputNode
+            let format = input.outputFormat(forBus: 0)
+            let file = try AVAudioFile(forWriting: url, settings: format.settings)
+            audioFile = file
+            audioFileURL = url
+
+            input.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
+                try? file.write(from: buffer)
+            }
+            audioEngine.prepare()
+            try audioEngine.start()
+            partial = ""
+            phase = .recording
+        } catch {
+            phase = .error("Audio: \(error.localizedDescription)")
+        }
+    }
+
+    private func finishCloud() async {
+        guard let url = audioFileURL else {
+            phase = .idle
+            return
+        }
+        audioFile = nil
+        audioFileURL = nil
+        do {
+            let raw = try await CloudSTT.transcribe(fileURL: url)
+            try? FileManager.default.removeItem(at: url)
+            guard !raw.isEmpty else {
+                phase = .idle
+                partial = ""
+                return
+            }
+            let polished = await PolishClient.polish(raw)
+            onInsert(polished)
+            phase = .idle
+            partial = ""
+        } catch {
+            try? FileManager.default.removeItem(at: url)
+            phase = .error("STT: \(error.localizedDescription)")
+        }
+    }
+
+    // MARK: On-device STT via SFSpeechRecognizer.
 
     private func startRecording() {
         let status = SFSpeechRecognizer.authorizationStatus()
@@ -142,13 +204,23 @@ final class KeyboardState: ObservableObject {
         guard phase == .recording else { return }
         audioEngine.stop()
         audioEngine.inputNode.removeTap(onBus: 0)
+        let wasCloud = audioFile != nil
         request?.endAudio()
         if discard {
             task?.cancel()
+            audioFile = nil
+            if let url = audioFileURL {
+                try? FileManager.default.removeItem(at: url)
+                audioFileURL = nil
+            }
             phase = .idle
             partial = ""
         } else {
             phase = .processing
+            if wasCloud {
+                audioFile = nil
+                Task { await finishCloud() }
+            }
         }
     }
 

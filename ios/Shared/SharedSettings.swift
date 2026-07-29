@@ -40,4 +40,27 @@ enum SharedSettings {
         get { defaults.string(forKey: "language") ?? "ru-RU" }
         set { defaults.set(newValue, forKey: "language") }
     }
+
+    // Cloud STT (whisper-quality recognition over an OpenAI-compatible
+    // /audio/transcriptions endpoint). Off by default — the on-device
+    // recognizer is the free fallback.
+    static var cloudSTTEnabled: Bool {
+        get { defaults.bool(forKey: "stt_cloud_enabled") }
+        set { defaults.set(newValue, forKey: "stt_cloud_enabled") }
+    }
+
+    static var sttBaseURL: String {
+        get { defaults.string(forKey: "stt_base_url") ?? "https://api.groq.com/openai/v1" }
+        set { defaults.set(newValue, forKey: "stt_base_url") }
+    }
+
+    static var sttApiKey: String {
+        get { defaults.string(forKey: "stt_api_key") ?? "" }
+        set { defaults.set(newValue, forKey: "stt_api_key") }
+    }
+
+    static var sttModel: String {
+        get { defaults.string(forKey: "stt_model") ?? "whisper-large-v3" }
+        set { defaults.set(newValue, forKey: "stt_model") }
+    }
 }
