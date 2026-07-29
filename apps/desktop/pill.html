@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Oratio pill</title>
+    <style>
+      :root,
+      :root[data-theme="cream"] {
+        --pill-bg: rgba(255, 253, 249, 0.96);
+        --pill-border: #e3dacb;
+        --pill-accent: #c56a3d;
+        --pill-accent-2: #d98a5f;
+        --pill-accent-hover: #a85529;
+        --pill-on-accent: #fff8f2;
+        --pill-muted: #7a6f5d;
+        --pill-btn-bg: #ede6da;
+        --pill-btn-hover: #ddd2bf;
+        --pill-shadow: rgba(90, 70, 40, 0.18);
+      }
+      :root[data-theme="peach"] {
+        --pill-bg: rgba(255, 255, 255, 0.96);
+        --pill-border: #f2d4c4;
+        --pill-accent: #e2704f;
+        --pill-accent-2: #e88d66;
+        --pill-accent-hover: #c65535;
+        --pill-on-accent: #fff6f1;
+        --pill-muted: #b08a75;
+        --pill-btn-bg: #f5e7de;
+        --pill-btn-hover: #ecd7c9;
+        --pill-shadow: rgba(120, 70, 45, 0.16);
+      }
+      :root[data-theme="ember"] {
+        --pill-bg: rgba(43, 38, 32, 0.96);
+        --pill-border: #4a4234;
+        --pill-accent: #e8a33d;
+        --pill-accent-2: #f0be6e;
+        --pill-accent-hover: #f0be6e;
+        --pill-on-accent: #33240d;
+        --pill-muted: #a6947c;
+        --pill-btn-bg: #3d362c;
+        --pill-btn-hover: #4a4234;
+        --pill-shadow: rgba(0, 0, 0, 0.4);
+      }
+      html,
+      body {
+        margin: 0;
+        background: transparent;
+        overflow: hidden;
+        font-family: -apple-system, "SF Pro Text", sans-serif;
+        user-select: none;
+        -webkit-user-select: none;
+        cursor: default;
+      }
+      #pill {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: var(--pill-bg);
+        border: 0.5px solid var(--pill-border);
+        border-radius: 999px;
+        padding: 8px 18px;
+        width: max-content;
+        margin: 6px auto;
+        box-shadow: 0 4px 16px var(--pill-shadow);
+      }
+      #dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--pill-accent);
+      }
+      #pill.processing #dot {
+        animation: pulse 1s ease-in-out infinite;
+      }
+      @keyframes pulse {
+        50% {
+          opacity: 0.3;
+        }
+      }
+      #wave {
+        display: flex;
+        align-items: center;
+        gap: 2.5px;
+        height: 18px;
+      }
+      #wave span {
+        width: 3px;
+        border-radius: 2px;
+        background: var(--pill-accent);
+        height: 4px;
+        transition: height 80ms linear;
+      }
+      #wave span:nth-child(even) {
+        background: var(--pill-accent-2);
+      }
+      #label {
+        font-size: 12px;
+        color: var(--pill-muted);
+        min-width: 30px;
+      }
+      .btn {
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        border: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        padding: 0;
+        font-size: 11px;
+        line-height: 1;
+      }
+      #stop {
+        background: var(--pill-accent);
+        color: var(--pill-on-accent);
+      }
+      #stop:hover {
+        background: var(--pill-accent-hover);
+      }
+      #cancel {
+        background: var(--pill-btn-bg);
+        color: var(--pill-muted);
+      }
+      #cancel:hover {
+        background: var(--pill-btn-hover);
+      }
+      #pill.processing .btn {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="pill">
+      <div id="dot"></div>
+      <div id="wave"></div>
+      <div id="label">0:00</div>
+      <button id="stop" class="btn" title="Stop and insert">&#9632;</button>
+      <button id="cancel" class="btn" title="Cancel">&#10005;</button>
+    </div>
+    <script>
+      const wave = document.getElementById("wave");
+      const label = document.getElementById("label");
+      const pill = document.getElementById("pill");
+      const BARS = 14;
+      const heights = new Array(BARS).fill(4);
+      for (let i = 0; i < BARS; i++) {
+        const bar = document.createElement("span");
+        wave.appendChild(bar);
+      }
+      const bars = [...wave.children];
+
+      const { listen } = window.__TAURI__.event;
+      const { invoke } = window.__TAURI__.core;
+
+      document.getElementById("stop").addEventListener("click", () => invoke("stop_dictation"));
+      document.getElementById("cancel").addEventListener("click", () => invoke("cancel_dictation"));
+
+      invoke("get_settings").then((s) => {
+        document.documentElement.dataset.theme = s.appearance.theme;
+      });
+      listen("settings://changed", (e) => {
+        document.documentElement.dataset.theme = e.payload.theme;
+      });
+
+      let seconds = 0;
+      let timer = null;
+
+      listen("pill://state", (e) => {
+        const state = e.payload;
+        if (state === "recording") {
+          pill.className = "";
+          seconds = 0;
+          label.textContent = "0:00";
+          if (timer) clearInterval(timer);
+          timer = setInterval(() => {
+            seconds += 1;
+            const m = Math.floor(seconds / 60);
+            const s = String(seconds % 60).padStart(2, "0");
+            label.textContent = `${m}:${s}`;
+          }, 1000);
+        } else if (state === "processing") {
+          pill.className = "processing";
+          label.textContent = "…";
+          if (timer) clearInterval(timer);
+        }
+      });
+
+      listen("pill://level", (e) => {
+        heights.shift();
+        heights.push(4 + Math.min(1, e.payload) * 14);
+        bars.forEach((b, i) => (b.style.height = heights[i] + "px"));
+      });
+    </script>
+  </body>
+</html>

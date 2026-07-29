@@ -1,0 +1,7 @@
+/target
+*.bin
+assets/testdata/*.wav
+.DS_Store
+node_modules
+dist
+apps/desktop/src-tauri/gen/

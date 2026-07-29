@@ -1,0 +1,35 @@
+[package]
+name = "oratio-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[features]
+default = ["whisper", "local-audio"]
+whisper = ["dep:whisper-rs"]
+local-audio = ["dep:cpal", "dep:rubato"]
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+dirs = "6"
+hound = "3"
+whisper-rs = { version = "0.16", optional = true }
+cpal = { version = "0.16", optional = true }
+rubato = { version = "0.16", optional = true }
+voice_activity_detector = "0.2"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream", "blocking", "json"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs", "io-util"] }
+futures-util = "0.3"
+sha1 = "0.10"
+hex = "0.4"
+rusqlite = { version = "0.37", features = ["bundled"] }
+zip = { version = "2", default-features = false, features = ["deflate"] }
+tar = "0.4"
+flate2 = "1"
+zstd = "0.13"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+whisper-rs = { version = "0.16", features = ["metal"], optional = true }
