@@ -13,6 +13,21 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 use oratio_core::settings::{settings_path, Settings};
 
 pub fn run() {
+    // AppImage-bundled webkit2gtk hits EGL_BAD_PARAMETER (white window) on
+    // NVIDIA/some drivers, and bundled GTK sometimes picks X11 under Wayland
+    // sessions, breaking layer-shell. Set safe defaults unless overridden.
+    #[cfg(target_os = "linux")]
+    {
+        if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
+            std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+        }
+        if std::env::var_os("GDK_BACKEND").is_none()
+            && std::env::var_os("WAYLAND_DISPLAY").is_some()
+        {
+            std::env::set_var("GDK_BACKEND", "wayland,x11");
+        }
+    }
+
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
@@ -177,13 +192,21 @@ fn position_pill(app: &tauri::AppHandle) {
     // wlroots compositors) pins it to the bottom edge as a proper overlay.
     #[cfg(target_os = "linux")]
     {
+        use gtk::prelude::{ObjectExt, WidgetExt};
         use gtk_layer_shell::LayerShell;
         match pill.gtk_window() {
             Ok(gtk_win) => {
-                gtk_win.init_layer_shell();
-                gtk_win.set_layer(gtk_layer_shell::Layer::Overlay);
-                gtk_win.set_anchor(gtk_layer_shell::Edge::Bottom, true);
-                tracing::info!("pill attached to the bottom edge via layer-shell");
+                // layer-shell only exists on Wayland; on X11 (or XWayland
+                // fallback) skip it and let set_position handle placement.
+                let backend = gtk_win.display().type_().name().to_string();
+                if backend.contains("Wayland") {
+                    gtk_win.init_layer_shell();
+                    gtk_win.set_layer(gtk_layer_shell::Layer::Overlay);
+                    gtk_win.set_anchor(gtk_layer_shell::Edge::Bottom, true);
+                    tracing::info!("pill attached to the bottom edge via layer-shell");
+                } else {
+                    tracing::info!("GDK backend is {backend}; using plain window positioning");
+                }
             }
             Err(e) => tracing::warn!("layer-shell setup failed ({e}); pill position may be off"),
         }
@@ -210,10 +233,13 @@ fn apply_pill_position_on_main(app: &tauri::AppHandle) {
 
     #[cfg(target_os = "linux")]
     {
+        use gtk::prelude::{ObjectExt, WidgetExt};
         use gtk_layer_shell::LayerShell;
         if let Ok(gtk_win) = pill.gtk_window() {
-            gtk_win.set_layer_shell_margin(gtk_layer_shell::Edge::Bottom, margin as i32);
-            return;
+            if gtk_win.display().type_().name().contains("Wayland") {
+                gtk_win.set_layer_shell_margin(gtk_layer_shell::Edge::Bottom, margin as i32);
+                return;
+            }
         }
     }
 
