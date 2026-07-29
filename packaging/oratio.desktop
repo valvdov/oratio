@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Oratio
+Comment=Local-first voice dictation
+Exec=oratio
+Icon=oratio
+Terminal=false
+Categories=Utility;Audio;
+Keywords=dictation;speech;voice;whisper;
+StartupNotify=false

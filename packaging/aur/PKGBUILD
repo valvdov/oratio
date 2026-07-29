@@ -1,0 +1,31 @@
+# Maintainer: Valerii Vdovin <valvdov@gmail.com>
+pkgname=oratio
+pkgver=0.2.1
+pkgrel=1
+pkgdesc="Local-first voice dictation: hold a hotkey, speak RU/EN, get polished text in any app"
+arch=(x86_64)
+url="https://github.com/valvdov/oratio"
+license=(MIT)
+depends=(webkit2gtk-4.1 gtk-layer-shell libappindicator-gtk3 openssl alsa-lib
+         vulkan-icd-loader wtype)
+makedepends=(rust nodejs npm cmake clang vulkan-headers shaderc)
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+build() {
+    cd "$srcdir/$pkgname-$pkgver/apps/desktop"
+    npm install
+    npm run build
+    cd src-tauri
+    cargo build --release
+}
+
+package() {
+    cd "$srcdir/$pkgname-$pkgver"
+    install -Dm755 target/release/oratio-desktop "$pkgdir/usr/bin/oratio"
+    install -Dm644 packaging/oratio.desktop "$pkgdir/usr/share/applications/oratio.desktop"
+    install -Dm644 apps/desktop/src-tauri/icons/128x128.png \
+        "$pkgdir/usr/share/icons/hicolor/128x128/apps/oratio.png"
+    install -Dm644 apps/desktop/src-tauri/icons/32x32.png \
+        "$pkgdir/usr/share/icons/hicolor/32x32/apps/oratio.png"
+}
