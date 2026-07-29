@@ -190,7 +190,13 @@ fn position_pill(app: &tauri::AppHandle) {
 }
 
 /// (Re)apply the pill's distance from the bottom edge from settings.
+/// GTK (Linux) only accepts calls from the main thread — dispatch there.
 pub fn apply_pill_position(app: &tauri::AppHandle) {
+    let handle = app.clone();
+    let _ = app.run_on_main_thread(move || apply_pill_position_on_main(&handle));
+}
+
+fn apply_pill_position_on_main(app: &tauri::AppHandle) {
     let Some(pill) = app.get_webview_window("pill") else {
         return;
     };
