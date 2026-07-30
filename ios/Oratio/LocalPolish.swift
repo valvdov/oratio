@@ -62,26 +62,50 @@ enum LocalPolish {
         return FileManager.default.fileExists(atPath: p)
     }
 
+    /// Why the last polish() returned nil — shown in the UI instead of
+    /// silently inserting raw text.
+    nonisolated(unsafe) static var lastError: String?
+
     static func polish(_ raw: String) async -> String? {
         guard isReady else { return nil }
+        lastError = nil
         // Qwen3 hybrid models: suppress thinking blocks.
         let prompt = PolishClient.composedSystemPrompt() + " /no_think"
 
         #if targetEnvironment(simulator)
-        let useGpu = false
+        let useGpuFirst = false
         #else
-        let useGpu = true
+        let useGpuFirst = true
         #endif
 
         let modelPath = path(for: activeModel).path
         return await Task.detached(priority: .userInitiated) { () -> String? in
+            func run(_ gpu: Bool) throws -> String {
+                try polishLocal(
+                    modelPath: modelPath, systemPrompt: prompt, text: raw, useGpu: gpu)
+            }
             do {
-                let cleaned = try polishLocal(
-                    modelPath: modelPath, systemPrompt: prompt, text: raw, useGpu: useGpu)
+                var cleaned: String
+                do {
+                    cleaned = try run(useGpuFirst)
+                } catch where useGpuFirst {
+                    // Metal can fail on some device/OS combos — drop the broken
+                    // engine and retry on CPU before giving up.
+                    unloadEngines()
+                    cleaned = try run(false)
+                }
                 let trimmed = cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !trimmed.isEmpty, trimmed.count <= raw.count * 2 + 40 else { return nil }
+                guard !trimmed.isEmpty else {
+                    LocalPolish.lastError = "model returned empty output"
+                    return nil
+                }
+                guard trimmed.count <= raw.count * 2 + 40 else {
+                    LocalPolish.lastError = "model output looked like an answer, not a cleanup"
+                    return nil
+                }
                 return trimmed
             } catch {
+                LocalPolish.lastError = error.localizedDescription
                 return nil
             }
         }.value

@@ -25,6 +25,14 @@ struct DictateView: View {
             .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 16))
             .padding(.horizontal)
 
+            if let note = model.polishNote {
+                Text(note)
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal)
+            }
+
             Picker("Style", selection: $styleId) {
                 ForEach(PolishClient.styles, id: \.id) { style in
                     Text(style.label).tag(style.id)
@@ -110,6 +118,7 @@ final class DictateModel: ObservableObject {
     @Published var modelReady = false
     @Published var downloadProgress: Double = 0
     @Published var statusHint = "Tap the microphone and speak. Everything runs on this device."
+    @Published var polishNote: String?
 
     private var recorder: AVAudioRecorder?
     private var fileURL: URL?
@@ -218,6 +227,7 @@ final class DictateModel: ObservableObject {
             }
             self.recorder = recorder
             self.fileURL = url
+            polishNote = nil
             isRecording = true
         } catch {
             statusHint = "Audio error: \(error.localizedDescription)"
@@ -292,6 +302,7 @@ final class DictateModel: ObservableObject {
             }
             try? FileManager.default.removeItem(at: url)
             let polished = result.isEmpty ? "" : await PolishClient.polish(result)
+            let polishError = result.isEmpty ? nil : LocalPolish.lastError
             if !result.isEmpty {
                 HistoryStore.add(
                     raw: result,
@@ -309,6 +320,9 @@ final class DictateModel: ObservableObject {
                         UIPasteboard.general.string = self.text
                         self.statusHint = "Готово — вернитесь в приложение стрелкой ← вверху, текст вставится сам."
                     }
+                }
+                self.polishNote = polishError.map {
+                    "Local polish failed: \($0) — raw text shown."
                 }
                 self.fromKeyboard = false
                 self.isProcessing = false
