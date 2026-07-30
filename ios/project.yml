@@ -8,6 +8,8 @@ settings:
     SWIFT_VERSION: "5.9"
     MARKETING_VERSION: "0.2.0"
     CURRENT_PROJECT_VERSION: "1"
+    DEVELOPMENT_TEAM: 8A54T2FXMZ
+    CODE_SIGN_STYLE: Automatic
 
 targets:
   Oratio:
