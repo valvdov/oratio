@@ -41,6 +41,7 @@ pub fn transcribe_wav(
     wav_path: String,
     language: String,
     initial_prompt: String,
+    use_gpu: bool,
 ) -> Result<String, FfiError> {
     let samples = read_wav_16k(&wav_path)?;
     if samples.len() < (oratio_core::SAMPLE_RATE as usize) / 2 {
@@ -49,7 +50,8 @@ pub fn transcribe_wav(
 
     let mut guard = engines().lock().unwrap();
     if !guard.contains_key(&model_path) {
-        let engine = WhisperEngine::load(std::path::Path::new(&model_path))?;
+        let engine =
+            WhisperEngine::load_with_gpu(std::path::Path::new(&model_path), use_gpu)?;
         guard.insert(model_path.clone(), engine);
     }
     let engine = guard.get_mut(&model_path).unwrap();

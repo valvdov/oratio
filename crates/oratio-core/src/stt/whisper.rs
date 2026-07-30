@@ -12,9 +12,15 @@ pub struct WhisperEngine {
 
 impl WhisperEngine {
     pub fn load(model_path: &Path) -> Result<Self> {
+        Self::load_with_gpu(model_path, true)
+    }
+
+    /// `use_gpu: false` forces CPU inference — required on the iOS simulator,
+    /// where Metal cannot allocate whisper's buffers.
+    pub fn load_with_gpu(model_path: &Path, use_gpu: bool) -> Result<Self> {
         let mut params = WhisperContextParameters::default();
-        params.use_gpu(true);
-        params.flash_attn(true);
+        params.use_gpu(use_gpu);
+        params.flash_attn(use_gpu);
         let ctx = WhisperContext::new_with_params(
             model_path
                 .to_str()

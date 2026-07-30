@@ -207,12 +207,19 @@ final class DictateModel: ObservableObject {
         let dict = SharedSettings.dictionary.joined(separator: ", ")
         let prompt = dict.isEmpty ? "" : "Термины: \(dict)."
 
+        // Metal in the iOS simulator cannot allocate whisper's buffers.
+        #if targetEnvironment(simulator)
+        let useGpu = false
+        #else
+        let useGpu = true
+        #endif
+
         Task.detached {
             var result: String
             do {
                 result = try transcribeWav(
                     modelPath: modelPath, wavPath: url.path,
-                    language: language, initialPrompt: prompt)
+                    language: language, initialPrompt: prompt, useGpu: useGpu)
             } catch {
                 result = ""
                 Task { @MainActor [weak self] in

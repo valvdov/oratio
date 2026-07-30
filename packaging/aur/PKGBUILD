@@ -6,6 +6,9 @@ pkgdesc="Local-first voice dictation: hold a hotkey, speak RU/EN, get polished t
 arch=(x86_64)
 url="https://github.com/valvdov/oratio"
 license=(MIT)
+# makepkg's default LTO emits GCC bitcode for the C code the Rust build
+# compiles (bundled sqlite etc.), which Rust's lld cannot link.
+options=(!lto)
 depends=(webkit2gtk-4.1 gtk-layer-shell libappindicator-gtk3 openssl alsa-lib
          vulkan-icd-loader wtype)
 makedepends=(rust nodejs npm cmake clang vulkan-headers shaderc)
