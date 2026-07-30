@@ -5,8 +5,9 @@ import AVFoundation
 /// record → transcribe on-device → polish (if configured) → copy/share.
 struct DictateView: View {
     @StateObject private var model = DictateModel()
+    @State private var styleId = SharedSettings.styleId
 
-    private let accent = Color(red: 0.77, green: 0.42, blue: 0.24)
+    private var accent: Color { OratioTheme.current.accent }
 
     var body: some View {
         VStack(spacing: 24) {
@@ -23,6 +24,15 @@ struct DictateView: View {
             .frame(maxHeight: 280)
             .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 16))
             .padding(.horizontal)
+
+            Picker("Style", selection: $styleId) {
+                ForEach(PolishClient.styles, id: \.id) { style in
+                    Text(style.label).tag(style.id)
+                }
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal)
+            .onChange(of: styleId) { SharedSettings.styleId = styleId }
 
             if model.modelReady {
                 Button(action: { model.toggle() }) {
@@ -251,20 +261,43 @@ final class DictateModel: ObservableObject {
         let useGpu = true
         #endif
 
+        let recordedMs = Int64(duration * 1000)
         Task.detached {
-            var result: String
+            var result = ""
+            var failure: String?
             do {
-                result = try transcribeWav(
-                    modelPath: modelPath, wavPath: url.path,
-                    language: language, initialPrompt: prompt, useGpu: useGpu)
-            } catch {
-                result = ""
-                Task { @MainActor [weak self] in
-                    self?.statusHint = "Recognition: \(error.localizedDescription)"
+                let stats = try wavStats(wavPath: url.path)
+                if stats.peak < 0.001 {
+                    failure = "Microphone recorded silence "
+                        + "(\(String(format: "%.1f", Double(stats.durationMs) / 1000)) s). "
+                        + "Check Settings → Privacy & Security → Microphone → Oratio."
+                } else {
+                    do {
+                        result = try transcribeWav(
+                            modelPath: modelPath, wavPath: url.path,
+                            language: language, initialPrompt: prompt, useGpu: useGpu)
+                    } catch where useGpu {
+                        // Metal misbehaves on some device/OS combos — retry on CPU.
+                        unloadEngines()
+                        result = try transcribeWav(
+                            modelPath: modelPath, wavPath: url.path,
+                            language: language, initialPrompt: prompt, useGpu: false)
+                    }
                 }
+            } catch {
+                failure = "Recognition: \(error.localizedDescription)"
+            }
+            if let failure {
+                Task { @MainActor [weak self] in self?.statusHint = failure }
             }
             try? FileManager.default.removeItem(at: url)
             let polished = result.isEmpty ? "" : await PolishClient.polish(result)
+            if !result.isEmpty {
+                HistoryStore.add(
+                    raw: result,
+                    polished: polished == result ? nil : polished,
+                    durationMs: recordedMs)
+            }
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 if !polished.isEmpty {

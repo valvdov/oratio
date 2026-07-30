@@ -64,14 +64,8 @@ enum LocalPolish {
 
     static func polish(_ raw: String) async -> String? {
         guard isReady else { return nil }
-        var prompt = PolishClient.systemPromptBase
-        let dict = SharedSettings.dictionary
-        if !dict.isEmpty {
-            prompt += "\n\nSpell these terms exactly as written when they occur: "
-                + dict.joined(separator: ", ") + "."
-        }
         // Qwen3 hybrid models: suppress thinking blocks.
-        prompt += " /no_think"
+        let prompt = PolishClient.composedSystemPrompt() + " /no_think"
 
         #if targetEnvironment(simulator)
         let useGpu = false

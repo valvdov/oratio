@@ -8,10 +8,13 @@ extension Notification.Name {
 @main
 struct OratioApp: App {
     @State private var tab = 0
+    @AppStorage("theme", store: SharedSettings.defaults) private var themeRaw = "ember"
 
     init() {
         PolishClient.localPolisher = { raw in await LocalPolish.polish(raw) }
     }
+
+    private var theme: OratioTheme { OratioTheme(rawValue: themeRaw) ?? .ember }
 
     var body: some Scene {
         WindowGroup {
@@ -19,10 +22,15 @@ struct OratioApp: App {
                 NavigationStack { DictateView() }
                     .tabItem { Label("Dictate", systemImage: "mic.fill") }
                     .tag(0)
+                HistoryView()
+                    .tabItem { Label("History", systemImage: "clock") }
+                    .tag(1)
                 SettingsView()
                     .tabItem { Label("Settings", systemImage: "gearshape") }
-                    .tag(1)
+                    .tag(2)
             }
+            .tint(theme.accent)
+            .preferredColorScheme(theme.colorScheme)
             .onOpenURL { url in
                 // oratio://dictate — the keyboard asks for an in-app dictation.
                 guard url.absoluteString.contains("dictate") else { return }
@@ -52,8 +60,10 @@ struct SettingsView: View {
     @State private var llmProgress: [String: Double] = [:]
     @State private var llmObservations: [String: NSKeyValueObservation] = [:]
     @State private var llmRefresh = 0
+    @AppStorage("theme", store: SharedSettings.defaults) private var themeRaw = "ember"
+    @State private var styleId = SharedSettings.styleId
 
-    private let accent = Color(red: 0.77, green: 0.42, blue: 0.24)
+    private var accent: Color { OratioTheme.current.accent }
 
     var body: some View {
         NavigationStack {
@@ -72,6 +82,55 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
                 } header: {
                     Text("Setup")
+                }
+
+                Section {
+                    HStack(spacing: 12) {
+                        ForEach(OratioTheme.allCases) { theme in
+                            Button {
+                                themeRaw = theme.rawValue
+                            } label: {
+                                VStack(spacing: 6) {
+                                    Circle()
+                                        .fill(theme.accent)
+                                        .frame(width: 28, height: 28)
+                                        .overlay {
+                                            Circle().strokeBorder(
+                                                themeRaw == theme.rawValue
+                                                    ? Color.primary : .clear,
+                                                lineWidth: 2)
+                                        }
+                                    Text(theme.label).font(.caption)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 6)
+                                .background(
+                                    themeRaw == theme.rawValue
+                                        ? theme.accent.opacity(0.12) : .clear,
+                                    in: RoundedRectangle(cornerRadius: 10))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                } header: {
+                    Text("Appearance")
+                } footer: {
+                    Text("Cream and Peach are light, Ember is dark — same as desktop.")
+                }
+
+                Section {
+                    Picker("Style", selection: $styleId) {
+                        ForEach(PolishClient.styles, id: \.id) { style in
+                            Text(style.label).tag(style.id)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                } header: {
+                    Text("Polish style")
+                } footer: {
+                    Text(
+                        "Formal — full polite sentences; Casual — short and lively; "
+                        + "Prompt — rewrites the dictation as a structured AI prompt.")
                 }
 
                 Section("Speech") {
@@ -190,6 +249,7 @@ struct SettingsView: View {
             .onChange(of: sttBaseURL) { SharedSettings.sttBaseURL = sttBaseURL }
             .onChange(of: sttApiKey) { SharedSettings.sttApiKey = sttApiKey }
             .onChange(of: sttModel) { SharedSettings.sttModel = sttModel }
+            .onChange(of: styleId) { SharedSettings.styleId = styleId }
         }
     }
 

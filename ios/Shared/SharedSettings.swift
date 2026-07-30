@@ -41,6 +41,18 @@ enum SharedSettings {
         set { defaults.set(newValue, forKey: "language") }
     }
 
+    /// Theme id (cream/peach/ember) — same trio as desktop.
+    static var theme: String {
+        get { defaults.string(forKey: "theme") ?? "ember" }
+        set { defaults.set(newValue, forKey: "theme") }
+    }
+
+    /// Polish style id ("" = neutral; formal/casual/prompt as on desktop).
+    static var styleId: String {
+        get { defaults.string(forKey: "style") ?? "" }
+        set { defaults.set(newValue, forKey: "style") }
+    }
+
     // Cloud STT (whisper-quality recognition over an OpenAI-compatible
     // /audio/transcriptions endpoint). Off by default — the on-device
     // recognizer is the free fallback.

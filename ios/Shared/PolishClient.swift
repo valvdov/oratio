@@ -20,6 +20,48 @@ enum PolishClient {
     7. Return only the cleaned text: no quotes, no comments.
     """
 
+    /// Same built-in styles as the desktop app; the instruction is appended
+    /// to the polish prompt.
+    struct Style {
+        let id: String
+        let label: String
+        let instruction: String
+    }
+
+    static let styles: [Style] = [
+        Style(id: "", label: "Neutral", instruction: ""),
+        Style(
+            id: "formal", label: "Formal",
+            instruction: "Formal tone: полные предложения, вежливые формы, без сленга и "
+                + "разговорных сокращений."),
+        Style(
+            id: "casual", label: "Casual",
+            instruction: "Casual tone: разговорный стиль, коротко и живо, уместны "
+                + "сокращения; без канцелярита."),
+        Style(
+            id: "prompt", label: "Prompt",
+            instruction: "Перепиши надиктованное как чёткий промпт-задание для ИИ-ассистента: "
+                + "сформулируй цель императивно, требования и ограничения оформи списком, "
+                + "сохрани ВСЕ конкретные детали (имена файлов, технологии, числа, названия), "
+                + "убери разговорность и размышления вслух. Язык оставь тот же, что в диктовке."),
+    ]
+
+    /// Base prompt + dictionary + selected style — used by both the local
+    /// llama.cpp path and the cloud path.
+    static func composedSystemPrompt() -> String {
+        var prompt = systemPromptBase
+        let dict = SharedSettings.dictionary
+        if !dict.isEmpty {
+            prompt += "\n\nSpell these terms exactly as written when they occur: "
+                + dict.joined(separator: ", ") + "."
+        }
+        if let style = styles.first(where: { $0.id == SharedSettings.styleId }),
+           !style.instruction.isEmpty {
+            prompt += "\n\nStyle: " + style.instruction
+        }
+        return prompt
+    }
+
     /// Installed by the app at launch (keyboard extensions cannot host LLMs,
     /// so there this stays nil and cloud/raw paths apply).
     nonisolated(unsafe) static var localPolisher: ((String) async -> String?)?
@@ -31,12 +73,7 @@ enum PolishClient {
             return local
         }
         guard !SharedSettings.apiKey.isEmpty else { return raw }
-        var prompt = systemPromptBase
-        let dict = SharedSettings.dictionary
-        if !dict.isEmpty {
-            prompt += "\n\nSpell these terms exactly as written when they occur: "
-                + dict.joined(separator: ", ") + "."
-        }
+        let prompt = composedSystemPrompt()
 
         let base = SharedSettings.apiBaseURL.hasSuffix("/")
             ? String(SharedSettings.apiBaseURL.dropLast())

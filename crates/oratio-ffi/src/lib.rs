@@ -48,13 +48,16 @@ pub fn transcribe_wav(
         return Err(FfiError::NoSpeech);
     }
 
+    // Key by gpu flag too, so a CPU retry after a Metal failure actually
+    // reloads the model instead of hitting the broken cached engine.
+    let key = format!("{model_path}#gpu={use_gpu}");
     let mut guard = engines().lock().unwrap();
-    if !guard.contains_key(&model_path) {
+    if !guard.contains_key(&key) {
         let engine =
             WhisperEngine::load_with_gpu(std::path::Path::new(&model_path), use_gpu)?;
-        guard.insert(model_path.clone(), engine);
+        guard.insert(key.clone(), engine);
     }
-    let engine = guard.get_mut(&model_path).unwrap();
+    let engine = guard.get_mut(&key).unwrap();
 
     let opts = TranscribeOptions {
         language: if language == "auto" { None } else { Some(language) },
@@ -66,6 +69,78 @@ pub fn transcribe_wav(
     };
     let transcript = engine.transcribe(&samples, &opts)?;
     Ok(transcript.text)
+}
+
+/// Quick health check of a recorded wav: how long is it after downmix/resample
+/// and how loud does it get. Lets the app distinguish "mic recorded silence"
+/// from a recognition problem.
+#[derive(uniffi::Record)]
+pub struct WavStats {
+    pub duration_ms: i64,
+    pub peak: f32,
+}
+
+#[uniffi::export]
+pub fn wav_stats(wav_path: String) -> Result<WavStats, FfiError> {
+    let samples = read_wav_16k(&wav_path)?;
+    let peak = samples.iter().fold(0.0f32, |m, s| m.max(s.abs()));
+    Ok(WavStats {
+        duration_ms: samples.len() as i64 * 1000 / oratio_core::SAMPLE_RATE as i64,
+        peak,
+    })
+}
+
+/// Dictation history — same SQLite/FTS5 store as the desktop app.
+#[derive(uniffi::Record)]
+pub struct HistoryItem {
+    pub id: i64,
+    pub created_at: String,
+    pub raw_text: String,
+    pub polished_text: Option<String>,
+}
+
+fn history_open(db_path: &str) -> Result<oratio_core::history::History, FfiError> {
+    oratio_core::history::History::open(std::path::Path::new(db_path)).map_err(Into::into)
+}
+
+#[uniffi::export]
+pub fn history_add(
+    db_path: String,
+    raw: String,
+    polished: Option<String>,
+    duration_ms: i64,
+) -> Result<i64, FfiError> {
+    let history = history_open(&db_path)?;
+    let id = history.insert_raw(&raw, None, duration_ms, "whisper")?;
+    if let Some(polished) = polished {
+        history.set_polished(id, &polished, None)?;
+    }
+    Ok(id)
+}
+
+/// Empty query returns the most recent entries (trigram FTS for 3+ chars).
+#[uniffi::export]
+pub fn history_search(
+    db_path: String,
+    query: String,
+    limit: u32,
+) -> Result<Vec<HistoryItem>, FfiError> {
+    let history = history_open(&db_path)?;
+    Ok(history
+        .search(&query, limit, 0)?
+        .into_iter()
+        .map(|e| HistoryItem {
+            id: e.id,
+            created_at: e.created_at,
+            raw_text: e.raw_text,
+            polished_text: e.polished_text,
+        })
+        .collect())
+}
+
+#[uniffi::export]
+pub fn history_delete(db_path: String, id: i64) -> Result<(), FfiError> {
+    history_open(&db_path)?.delete(id).map_err(Into::into)
 }
 
 /// Free cached engines (e.g. on memory warning).

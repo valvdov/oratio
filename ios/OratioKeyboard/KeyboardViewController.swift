@@ -263,7 +263,7 @@ final class KeyboardState: ObservableObject {
 struct KeyboardView: View {
     @ObservedObject var state: KeyboardState
 
-    private let accent = Color(red: 0.77, green: 0.42, blue: 0.24)
+    private var accent: Color { OratioTheme.current.accent }
 
     var body: some View {
         VStack(spacing: 10) {
