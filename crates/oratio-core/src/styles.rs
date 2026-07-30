@@ -38,7 +38,32 @@ impl Default for StyleSettings {
                                   сокращения; без канцелярита."
                         .into(),
                 },
+                Style {
+                    id: "prompt".into(),
+                    instruction: PROMPT_STYLE.into(),
+                },
             ],
+        }
+    }
+}
+
+pub const PROMPT_STYLE: &str =
+    "Перепиши надиктованное как чёткий промпт-задание для ИИ-ассистента: сформулируй цель \
+     императивно, требования и ограничения оформи списком, сохрани ВСЕ конкретные детали \
+     (имена файлов, технологии, числа, названия), убери разговорность и размышления вслух. \
+     Язык оставь тот же, что в диктовке.";
+
+impl StyleSettings {
+    /// Make sure built-in styles exist (settings files written by older
+    /// versions predate some of them).
+    pub fn ensure_builtins(&mut self) {
+        for (id, instruction) in [("prompt", PROMPT_STYLE)] {
+            if !self.styles.iter().any(|s| s.id == id) {
+                self.styles.push(Style {
+                    id: id.into(),
+                    instruction: instruction.into(),
+                });
+            }
         }
     }
 }

@@ -1,6 +1,6 @@
 # Maintainer: Valerii Vdovin <valvdov@gmail.com>
 pkgname=oratio
-pkgver=0.2.2
+pkgver=0.2.3
 pkgrel=1
 pkgdesc="Local-first voice dictation: hold a hotkey, speak RU/EN, get polished text in any app"
 arch=(x86_64)

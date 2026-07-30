@@ -172,6 +172,7 @@ impl Settings {
             }),
             Err(_) => Self::default(),
         };
+        settings.styles.ensure_builtins();
         for provider in &mut settings.polish.providers {
             let missing = provider
                 .api_key
