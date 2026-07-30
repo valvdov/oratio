@@ -18,7 +18,6 @@ final class KeyboardViewController: UIInputViewController {
         state.onInsert = { [weak self] text in self?.textDocumentProxy.insertText(text) }
         state.onBackspace = { [weak self] in self?.textDocumentProxy.deleteBackward() }
         state.onReturn = { [weak self] in self?.textDocumentProxy.insertText("\n") }
-        state.onOpenApp = { [weak self] in self?.openAppForDictation() }
 
         let host = UIHostingController(rootView: KeyboardView(state: state))
         host.view.backgroundColor = .clear
@@ -47,20 +46,6 @@ final class KeyboardViewController: UIInputViewController {
         state.stopRecording(discard: true)
     }
 
-    /// Open the container app in dictate mode. Keyboard extensions have no
-    /// UIApplication, so walk the responder chain for openURL:.
-    func openAppForDictation() {
-        guard let url = URL(string: "oratio://dictate") else { return }
-        let selector = sel_registerName("openURL:")
-        var responder: UIResponder? = self
-        while let current = responder {
-            if current.responds(to: selector), !(current is UIViewController) {
-                _ = current.perform(selector, with: url)
-                return
-            }
-            responder = current.next
-        }
-    }
 }
 
 @MainActor
@@ -79,7 +64,6 @@ final class KeyboardState: ObservableObject {
     var onInsert: (String) -> Void = { _ in }
     var onBackspace: () -> Void = {}
     var onReturn: () -> Void = {}
-    var onOpenApp: () -> Void = {}
 
     private let audioEngine = AVAudioEngine()
     private var recognizer: SFSpeechRecognizer?
@@ -126,8 +110,18 @@ final class KeyboardState: ObservableObject {
             partial = ""
             phase = .recording
         } catch {
-            phase = .error("Audio: \(error.localizedDescription)")
+            phase = .error(Self.describeAudioError(error))
         }
+    }
+
+    /// iOS refuses to start audio input inside keyboard extensions on recent
+    /// versions (Apple bug FB16791704) — explain instead of dumping OSStatus.
+    static func describeAudioError(_ error: Error) -> String {
+        let code = (error as NSError).code
+        if [2003329396, 561145187, 561015905].contains(code) {
+            return "iOS blocks the mic in keyboards — use the big button to dictate in the app."
+        }
+        return "Audio: \(error.localizedDescription)"
     }
 
     private func finishCloud() async {
@@ -202,26 +196,27 @@ final class KeyboardState: ObservableObject {
             finalText = ""
             partial = ""
             phase = .recording
-
-            task = recognizer.recognitionTask(with: request) { [weak self] result, error in
-                Task { @MainActor in
-                    guard let self else { return }
-                    if let result {
-                        self.partial = result.bestTranscription.formattedString
-                        if result.isFinal {
-                            self.finalText = result.bestTranscription.formattedString
-                            await self.finish()
-                        }
-                    }
-                    if error != nil, self.phase == .processing {
-                        // Recognition ended without a final result — use the partial.
-                        self.finalText = self.partial
+        } catch {
+            phase = .error(Self.describeAudioError(error))
+            return
+        }
+        guard let request = self.request else { return }
+        task = recognizer.recognitionTask(with: request) { [weak self] result, error in
+            Task { @MainActor in
+                guard let self else { return }
+                if let result {
+                    self.partial = result.bestTranscription.formattedString
+                    if result.isFinal {
+                        self.finalText = result.bestTranscription.formattedString
                         await self.finish()
                     }
                 }
+                if error != nil, self.phase == .processing {
+                    // Recognition ended without a final result — use the partial.
+                    self.finalText = self.partial
+                    await self.finish()
+                }
             }
-        } catch {
-            phase = .error("Audio: \(error.localizedDescription)")
         }
     }
 
@@ -280,7 +275,11 @@ struct KeyboardView: View {
                 .padding(.horizontal, 12)
                 .padding(.top, 10)
 
-            Button(action: { state.toggleRecording() }) {
+            // iOS blocks microphone input inside keyboard extensions (Apple bug
+            // FB16791704), so the big button hands dictation to the app; a
+            // SwiftUI Link is the only URL-opening that iOS 18+ still allows
+            // from a keyboard. The result auto-inserts on return (App Group).
+            Link(destination: URL(string: "oratio://dictate")!) {
                 ZStack {
                     Circle()
                         .fill(state.phase == .recording ? Color.red.opacity(0.85) : accent)
@@ -299,8 +298,10 @@ struct KeyboardView: View {
                         Image(systemName: "globe").frame(width: 60, height: 40)
                     }
                 }
-                Button(action: { state.onOpenApp() }) {
-                    Image(systemName: "arrow.up.forward.app").frame(width: 60, height: 40)
+                // In-keyboard recognition attempt (works if Apple ever unblocks
+                // the mic for keyboards; today it shows a friendly error).
+                Button(action: { state.toggleRecording() }) {
+                    Image(systemName: "waveform").frame(width: 60, height: 40)
                 }
                 Spacer()
                 Button(action: { state.onBackspace() }) {
@@ -327,7 +328,7 @@ struct KeyboardView: View {
 
     private var statusText: String {
         switch state.phase {
-        case .idle: return "Tap to dictate"
+        case .idle: return "Tap the mic — Oratio dictates, the text inserts here when you return."
         case .recording: return state.partial.isEmpty ? "Listening…" : state.partial
         case .processing: return "Polishing…"
         case .error(let message): return message

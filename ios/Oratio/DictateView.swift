@@ -101,8 +101,7 @@ final class DictateModel: ObservableObject {
     @Published var downloadProgress: Double = 0
     @Published var statusHint = "Tap the microphone and speak. Everything runs on this device."
 
-    private let engine = AVAudioEngine()
-    private var file: AVAudioFile?
+    private var recorder: AVAudioRecorder?
     private var fileURL: URL?
     private var downloadTask: URLSessionDownloadTask?
     private var progressObservation: NSKeyValueObservation?
@@ -186,22 +185,29 @@ final class DictateModel: ObservableObject {
     private func beginRecording() {
         do {
             let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.record, mode: .measurement)
+            try session.setCategory(.record, mode: .default)
             try session.setActive(true)
 
             let url = FileManager.default.temporaryDirectory
                 .appendingPathComponent("dictate-\(UUID().uuidString).wav")
-            let input = engine.inputNode
-            let format = input.outputFormat(forBus: 0)
-            let file = try AVAudioFile(forWriting: url, settings: format.settings)
-            self.file = file
-            self.fileURL = url
-
-            input.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
-                try? file.write(from: buffer)
+            // AVAudioRecorder writes whisper's native format directly and
+            // finalizes the wav header synchronously on stop() — the previous
+            // AVAudioEngine tap left the header at 0 frames on real devices.
+            let settings: [String: Any] = [
+                AVFormatIDKey: Int(kAudioFormatLinearPCM),
+                AVSampleRateKey: 16_000,
+                AVNumberOfChannelsKey: 1,
+                AVLinearPCMBitDepthKey: 16,
+                AVLinearPCMIsFloatKey: false,
+                AVLinearPCMIsBigEndianKey: false,
+            ]
+            let recorder = try AVAudioRecorder(url: url, settings: settings)
+            guard recorder.record() else {
+                statusHint = "Audio error: recording could not start."
+                return
             }
-            engine.prepare()
-            try engine.start()
+            self.recorder = recorder
+            self.fileURL = url
             isRecording = true
         } catch {
             statusHint = "Audio error: \(error.localizedDescription)"
@@ -209,11 +215,19 @@ final class DictateModel: ObservableObject {
     }
 
     private func stop() {
-        engine.stop()
-        engine.inputNode.removeTap(onBus: 0)
-        file = nil
+        let duration = recorder?.currentTime ?? 0
+        recorder?.stop()
+        recorder = nil
+        try? AVAudioSession.sharedInstance()
+            .setActive(false, options: .notifyOthersOnDeactivation)
         isRecording = false
         guard let url = fileURL else { return }
+        guard duration > 0.6 else {
+            try? FileManager.default.removeItem(at: url)
+            fileURL = nil
+            statusHint = "Recording too short (\(String(format: "%.1f", duration)) s) — hold the mic and speak."
+            return
+        }
         fileURL = nil
         isProcessing = true
 
