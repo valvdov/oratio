@@ -63,4 +63,21 @@ enum SharedSettings {
         get { defaults.string(forKey: "stt_model") ?? "whisper-large-v3" }
         set { defaults.set(newValue, forKey: "stt_model") }
     }
+
+    // Round-trip: the app leaves freshly dictated text here; the keyboard
+    // inserts it when it becomes visible again.
+    static func setPendingText(_ text: String) {
+        defaults.set(text, forKey: "pending_text")
+        defaults.set(Date().timeIntervalSince1970, forKey: "pending_ts")
+    }
+
+    /// Returns and clears the pending text when it is fresh (< 3 minutes old).
+    static func takePendingText() -> String? {
+        guard let text = defaults.string(forKey: "pending_text"), !text.isEmpty else { return nil }
+        let ts = defaults.double(forKey: "pending_ts")
+        defaults.removeObject(forKey: "pending_text")
+        defaults.removeObject(forKey: "pending_ts")
+        guard Date().timeIntervalSince1970 - ts < 180 else { return nil }
+        return text
+    }
 }

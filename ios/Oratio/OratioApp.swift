@@ -1,15 +1,31 @@
 import SwiftUI
 import Speech
 
+extension Notification.Name {
+    static let oratioAutoDictate = Notification.Name("oratio.autodictate")
+}
+
 @main
 struct OratioApp: App {
+    @State private var tab = 0
+
     var body: some Scene {
         WindowGroup {
-            TabView {
+            TabView(selection: $tab) {
                 NavigationStack { DictateView() }
                     .tabItem { Label("Dictate", systemImage: "mic.fill") }
+                    .tag(0)
                 SettingsView()
                     .tabItem { Label("Settings", systemImage: "gearshape") }
+                    .tag(1)
+            }
+            .onOpenURL { url in
+                // oratio://dictate — the keyboard asks for an in-app dictation.
+                guard url.absoluteString.contains("dictate") else { return }
+                tab = 0
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    NotificationCenter.default.post(name: .oratioAutoDictate, object: nil)
+                }
             }
         }
     }

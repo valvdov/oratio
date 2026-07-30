@@ -18,6 +18,7 @@ final class KeyboardViewController: UIInputViewController {
         state.onInsert = { [weak self] text in self?.textDocumentProxy.insertText(text) }
         state.onBackspace = { [weak self] in self?.textDocumentProxy.deleteBackward() }
         state.onReturn = { [weak self] in self?.textDocumentProxy.insertText("\n") }
+        state.onOpenApp = { [weak self] in self?.openAppForDictation() }
 
         let host = UIHostingController(rootView: KeyboardView(state: state))
         host.view.backgroundColor = .clear
@@ -33,9 +34,32 @@ final class KeyboardViewController: UIInputViewController {
         ])
     }
 
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        // Round-trip: if the app just dictated something for us, insert it.
+        if let pending = SharedSettings.takePendingText() {
+            textDocumentProxy.insertText(pending)
+        }
+    }
+
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
         state.stopRecording(discard: true)
+    }
+
+    /// Open the container app in dictate mode. Keyboard extensions have no
+    /// UIApplication, so walk the responder chain for openURL:.
+    func openAppForDictation() {
+        guard let url = URL(string: "oratio://dictate") else { return }
+        let selector = sel_registerName("openURL:")
+        var responder: UIResponder? = self
+        while let current = responder {
+            if current.responds(to: selector), !(current is UIViewController) {
+                _ = current.perform(selector, with: url)
+                return
+            }
+            responder = current.next
+        }
     }
 }
 
@@ -55,6 +79,7 @@ final class KeyboardState: ObservableObject {
     var onInsert: (String) -> Void = { _ in }
     var onBackspace: () -> Void = {}
     var onReturn: () -> Void = {}
+    var onOpenApp: () -> Void = {}
 
     private let audioEngine = AVAudioEngine()
     private var recognizer: SFSpeechRecognizer?
@@ -273,6 +298,9 @@ struct KeyboardView: View {
                     Button(action: { state.onGlobe() }) {
                         Image(systemName: "globe").frame(width: 60, height: 40)
                     }
+                }
+                Button(action: { state.onOpenApp() }) {
+                    Image(systemName: "arrow.up.forward.app").frame(width: 60, height: 40)
                 }
                 Spacer()
                 Button(action: { state.onBackspace() }) {

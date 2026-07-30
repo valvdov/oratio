@@ -86,6 +86,9 @@ struct DictateView: View {
         }
         .navigationTitle("Dictate")
         .onAppear { model.checkModel() }
+        .onReceive(NotificationCenter.default.publisher(for: .oratioAutoDictate)) { _ in
+            model.beginFromKeyboard()
+        }
     }
 }
 
@@ -151,8 +154,20 @@ final class DictateModel: ObservableObject {
         task.resume()
     }
 
+    /// True when this dictation was requested by the keyboard: the result is
+    /// left in the App Group for the keyboard to insert on return.
+    private var fromKeyboard = false
+
     func toggle() {
         isRecording ? stop() : start()
+    }
+
+    func beginFromKeyboard() {
+        checkModel()
+        guard modelReady, !isRecording, !isProcessing else { return }
+        fromKeyboard = true
+        text = ""
+        start()
     }
 
     private func start() {
@@ -240,7 +255,15 @@ final class DictateModel: ObservableObject {
                 guard let self else { return }
                 if !polished.isEmpty {
                     self.text = self.text.isEmpty ? polished : self.text + " " + polished
+                    // Round-trip: hand the text to the keyboard (and clipboard
+                    // as a fallback). One tap on "← back" and it auto-inserts.
+                    if self.fromKeyboard {
+                        SharedSettings.setPendingText(self.text)
+                        UIPasteboard.general.string = self.text
+                        self.statusHint = "Готово — вернитесь в приложение стрелкой ← вверху, текст вставится сам."
+                    }
                 }
+                self.fromKeyboard = false
                 self.isProcessing = false
             }
         }

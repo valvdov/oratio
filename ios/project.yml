@@ -25,6 +25,8 @@ targets:
       properties:
         CFBundleDisplayName: Oratio
         UILaunchScreen: {}
+        CFBundleURLTypes:
+          - CFBundleURLSchemes: [oratio]
         NSMicrophoneUsageDescription: >-
           Oratio needs the microphone to transcribe your dictation.
         NSSpeechRecognitionUsageDescription: >-
