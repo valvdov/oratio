@@ -18,9 +18,14 @@ enum LocalPolish {
             sizeMB: 400),
         ModelSpec(
             id: "Qwen3-1.7B-Q4_K_M.gguf",
-            label: "Qwen3 1.7B — recommended, ~1.1 GB",
+            label: "Qwen3 1.7B — fast, ~1.1 GB",
             url: URL(string: "https://huggingface.co/unsloth/Qwen3-1.7B-GGUF/resolve/main/Qwen3-1.7B-Q4_K_M.gguf")!,
             sizeMB: 1100),
+        ModelSpec(
+            id: "Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
+            label: "Qwen3 4B — best quality, ~2.5 GB",
+            url: URL(string: "https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF/resolve/main/Qwen3-4B-Instruct-2507-Q4_K_M.gguf")!,
+            sizeMB: 2500),
         ModelSpec(
             id: "gemma-3-1b-it-Q4_K_M.gguf",
             label: "Gemma 3 1B — ~0.8 GB",

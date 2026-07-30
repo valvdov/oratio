@@ -23,6 +23,8 @@ enum HistoryStore {
     /// created_at is SQLite UTC "YYYY-MM-DD HH:MM:SS"; show it in local time.
     static func displayDate(_ raw: String) -> String {
         let parser = DateFormatter()
+        // Fixed-format parsing must not depend on the device locale.
+        parser.locale = Locale(identifier: "en_US_POSIX")
         parser.dateFormat = "yyyy-MM-dd HH:mm:ss"
         parser.timeZone = TimeZone(identifier: "UTC")
         guard let date = parser.date(from: raw) else { return raw }
