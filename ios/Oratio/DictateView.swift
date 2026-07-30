@@ -205,7 +205,15 @@ final class DictateModel: ObservableObject {
         let modelPath = Self.modelPath.path
         let language = String(SharedSettings.language.prefix(2))
         let dict = SharedSettings.dictionary.joined(separator: ", ")
-        let prompt = dict.isEmpty ? "" : "Термины: \(dict)."
+        // Same trick as the desktop core: a code-switched seed sentence primes
+        // whisper to keep English tech terms in Latin script within RU speech.
+        let seed = language == "ru"
+            ? "Запушь коммит в репозиторий на GitHub, задеплой на прод и открой pull request."
+            : ""
+        var prompt = seed
+        if !dict.isEmpty {
+            prompt += (prompt.isEmpty ? "" : " ") + "Термины: \(dict)."
+        }
 
         // Metal in the iOS simulator cannot allocate whisper's buffers.
         #if targetEnvironment(simulator)
