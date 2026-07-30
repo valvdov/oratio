@@ -9,6 +9,10 @@ extension Notification.Name {
 struct OratioApp: App {
     @State private var tab = 0
 
+    init() {
+        PolishClient.localPolisher = { raw in await LocalPolish.polish(raw) }
+    }
+
     var body: some Scene {
         WindowGroup {
             TabView(selection: $tab) {
@@ -44,6 +48,10 @@ struct SettingsView: View {
     @State private var sttBaseURL = SharedSettings.sttBaseURL
     @State private var sttApiKey = SharedSettings.sttApiKey
     @State private var sttModel = SharedSettings.sttModel
+    @State private var localModel = LocalPolish.activeModel
+    @State private var llmProgress: [String: Double] = [:]
+    @State private var llmObservations: [String: NSKeyValueObservation] = [:]
+    @State private var llmRefresh = 0
 
     private let accent = Color(red: 0.77, green: 0.42, blue: 0.24)
 
@@ -99,7 +107,47 @@ struct SettingsView: View {
                     )
                 }
 
-                Section("AI polish") {
+                Section {
+                    let _ = llmRefresh
+                    ForEach(LocalPolish.catalog) { spec in
+                        HStack {
+                            VStack(alignment: .leading) {
+                                Text(spec.label).font(.subheadline)
+                            }
+                            Spacer()
+                            if let progress = llmProgress[spec.id] {
+                                ProgressView(value: progress).frame(width: 70)
+                            } else if LocalPolish.isDownloaded(spec) {
+                                if localModel == spec.id {
+                                    Text("active").font(.caption).foregroundStyle(.secondary)
+                                } else {
+                                    Button("Use") {
+                                        localModel = spec.id
+                                        LocalPolish.activeModel = spec.id
+                                    }
+                                }
+                            } else {
+                                Button("Get") { downloadLLM(spec) }
+                            }
+                        }
+                    }
+                    if !localModel.isEmpty {
+                        Button("Disable local polish", role: .destructive) {
+                            localModel = ""
+                            LocalPolish.activeModel = ""
+                        }
+                    }
+                } header: {
+                    Text("Local AI polish (on-device)")
+                } footer: {
+                    Text(
+                        "Runs entirely on this device in the Oratio app. The keyboard "
+                        + "cannot host an LLM (iOS memory limits) — it uses the cloud "
+                        + "polish below when a key is set, or the in-app dictation flow."
+                    )
+                }
+
+                Section("Cloud AI polish") {
                     Toggle("Polish with AI", isOn: $polishEnabled)
                     TextField("Base URL", text: $baseURL)
                         .textInputAutocapitalization(.never)
@@ -143,6 +191,33 @@ struct SettingsView: View {
             .onChange(of: sttApiKey) { SharedSettings.sttApiKey = sttApiKey }
             .onChange(of: sttModel) { SharedSettings.sttModel = sttModel }
         }
+    }
+
+    private func downloadLLM(_ spec: LocalPolish.ModelSpec) {
+        llmProgress[spec.id] = 0.001
+        let task = URLSession.shared.downloadTask(with: spec.url) { tmp, _, error in
+            Task { @MainActor in
+                defer {
+                    llmProgress.removeValue(forKey: spec.id)
+                    llmObservations.removeValue(forKey: spec.id)
+                    llmRefresh += 1
+                }
+                guard let tmp, error == nil else { return }
+                let dest = LocalPolish.path(for: spec.id)
+                try? FileManager.default.removeItem(at: dest)
+                try? FileManager.default.moveItem(at: tmp, to: dest)
+                if localModel.isEmpty {
+                    localModel = spec.id
+                    LocalPolish.activeModel = spec.id
+                }
+            }
+        }
+        llmObservations[spec.id] = task.progress.observe(\.fractionCompleted) { progress, _ in
+            Task { @MainActor in
+                llmProgress[spec.id] = max(0.001, progress.fractionCompleted)
+            }
+        }
+        task.resume()
     }
 
     private func updateSpeechStatus() {

@@ -20,8 +20,17 @@ enum PolishClient {
     7. Return only the cleaned text: no quotes, no comments.
     """
 
+    /// Installed by the app at launch (keyboard extensions cannot host LLMs,
+    /// so there this stays nil and cloud/raw paths apply).
+    nonisolated(unsafe) static var localPolisher: ((String) async -> String?)?
+
     static func polish(_ raw: String) async -> String {
-        guard SharedSettings.polishEnabled, !SharedSettings.apiKey.isEmpty else { return raw }
+        guard SharedSettings.polishEnabled else { return raw }
+        // Local model first (app only); cloud is the optional fallback.
+        if let localPolisher, let local = await localPolisher(raw) {
+            return local
+        }
+        guard !SharedSettings.apiKey.isEmpty else { return raw }
         var prompt = systemPromptBase
         let dict = SharedSettings.dictionary
         if !dict.isEmpty {

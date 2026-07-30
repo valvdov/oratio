@@ -17,3 +17,4 @@ oratio-core = { path = "../oratio-core", default-features = false, features = ["
 uniffi = { version = "0.29", features = ["cli"] }
 thiserror.workspace = true
 tracing.workspace = true
+llama-cpp-2 = { version = "0.1.153", default-features = false, features = ["metal"] }
