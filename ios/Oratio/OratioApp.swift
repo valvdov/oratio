@@ -206,8 +206,8 @@ struct SettingsView: View {
                     )
                 }
 
-                Section("Cloud AI polish") {
-                    Toggle("Polish with AI", isOn: $polishEnabled)
+                Section {
+                    Toggle("Cloud polish (fallback)", isOn: $polishEnabled)
                     TextField("Base URL", text: $baseURL)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
@@ -215,6 +215,12 @@ struct SettingsView: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                     SecureField("API key", text: $apiKey)
+                } header: {
+                    Text("Cloud AI polish")
+                } footer: {
+                    Text(
+                        "Used only when no local model is active (or in the keyboard). "
+                        + "Local polish above works regardless of this toggle.")
                 }
 
                 Section("Dictionary") {

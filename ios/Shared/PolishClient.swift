@@ -100,12 +100,13 @@ enum PolishClient {
     nonisolated(unsafe) static var localPolisher: ((String) async -> String?)?
 
     static func polish(_ raw: String) async -> String {
-        guard SharedSettings.polishEnabled else { return raw }
-        // Local model first (app only); cloud is the optional fallback.
+        // Local model first (app only) — governed solely by the Local AI
+        // polish model selection, NOT by the cloud toggle below.
         if let localPolisher, let local = await localPolisher(raw) {
             return local
         }
-        guard !SharedSettings.apiKey.isEmpty else { return raw }
+        // Cloud is the optional fallback, gated by its own toggle + key.
+        guard SharedSettings.polishEnabled, !SharedSettings.apiKey.isEmpty else { return raw }
         let prompt = composedSystemPrompt()
 
         let base = SharedSettings.apiBaseURL.hasSuffix("/")
