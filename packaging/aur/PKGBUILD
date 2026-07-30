@@ -20,7 +20,9 @@ build() {
     npm install
     npm run build
     cd src-tauri
-    cargo build --release
+    # custom-protocol embeds the built frontend into the binary — without it
+    # the app tries to load the vite dev server (white screen).
+    cargo build --release --features tauri/custom-protocol
 }
 
 package() {
