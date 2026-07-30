@@ -56,6 +56,16 @@ enum LocalPolish {
         set { SharedSettings.defaults.set(newValue, forKey: "polish_local_model") }
     }
 
+    /// Remove the downloaded model file (and drop it from the engine cache,
+    /// which may hold it in memory).
+    static func deleteModel(_ spec: ModelSpec) {
+        try? FileManager.default.removeItem(at: path(for: spec.id))
+        if activeModel == spec.id {
+            activeModel = ""
+        }
+        unloadEngines()
+    }
+
     /// Running inside an app extension? (keyboard must not load LLMs)
     static var isExtension: Bool {
         Bundle.main.bundlePath.hasSuffix(".appex")

@@ -184,9 +184,20 @@ struct SettingsView: View {
                                         localModel = spec.id
                                         LocalPolish.activeModel = spec.id
                                     }
+                                    .buttonStyle(.borderless)
                                 }
+                                Button {
+                                    LocalPolish.deleteModel(spec)
+                                    if localModel == spec.id { localModel = "" }
+                                    llmRefresh += 1
+                                } label: {
+                                    Image(systemName: "trash")
+                                }
+                                .buttonStyle(.borderless)
+                                .foregroundStyle(.red)
                             } else {
                                 Button("Get") { downloadLLM(spec) }
+                                    .buttonStyle(.borderless)
                             }
                         }
                     }
